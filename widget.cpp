@@ -5,9 +5,7 @@ Widget::Widget(QWidget *parent)
     : QWidget(parent)
     , ui(new Ui::Widget)
 {
-    analysis = std::make_shared<Analysis>();
     clusterer = std::make_shared<KMeansClusterer>();
-
     ui->setupUi(this);
     connect(ui->uploadButton, SIGNAL(clicked()), this, SLOT(uploadImage()));
     connect(ui->kmeansButton, &QPushButton::clicked, this, [&]()
@@ -17,17 +15,20 @@ Widget::Widget(QWidget *parent)
             QMessageBox::critical(this, tr("Error"), tr("Upload an image first."));
             return;
         }
-
         QPixmap pixmap(fileName);
-        auto data = analysis->getImageData(pixmap.toImage());
+        auto data = clusterer->getImageData(pixmap.toImage());
+
         if (data.isEmpty())
         {
             QMessageBox::critical(this, tr("Error"), tr("Image data not available."));
             return;
         }
-        qDebug() << "In connect for cluster" ;
-        centroids = clusterer->performKMeans(data, 3, 20);
+        centroids = clusterer->performKMeans(data, clusterer->getNumberOfIteration());
+        assinments = clusterer->assignToCentroids(data, centroids);
+        clusterer->paintImage(pixmap.toImage(), assinments, centroids);
+
         createColorPalette(centroids);  // Pass the centroids as an argument
+            ui->paintLabel->setPixmap(clusterer->getPaintedPixmap().scaled( ui->paintLabel->size(), Qt::KeepAspectRatio));
     });
 }
 
@@ -36,22 +37,26 @@ Widget::~Widget()
     delete ui;
 }
 
-auto Widget::createColorPalette(const QVector<QRgb>& centroids)->void
+auto Widget::createColorPalette(const QVector<QRgb>& centroids) -> void
 {
     const int maxCentroidsToShow = 10;
     const int numCentroids = qMin(centroids.size(), maxCentroidsToShow);
-
+    int numberOfColumns = qCeil(qSqrt(numCentroids));
     for (int i = 0; i < numCentroids; ++i)
     {
         QLabel* colorLabel = new QLabel;
 
         QPixmap pixmap(30, 30);
         pixmap.fill(centroids[i]);
+        qDebug() << centroids[i];
         colorLabel->setPixmap(pixmap);
-        ui->colorHorizotallayout->addWidget(colorLabel);
+        int row = i / numberOfColumns;
+        int col = i % numberOfColumns;
+        ui->gridLayout->addWidget(colorLabel, row, col);
     }
 }
-void Widget::uploadImage()
+
+auto Widget::uploadImage() -> void
 {
     fileName = QFileDialog::getOpenFileName(this, tr("Open Image File"), "", tr("Images (*.png *.jpg *.bmp *.gif);;All Files (*)"));
 
@@ -65,6 +70,7 @@ void Widget::uploadImage()
 auto Widget::kMeansClusterer() -> void
 {
     QPixmap pixmap(fileName);
-    auto data = analysis->getImageData(pixmap.toImage());
-    centroids = clusterer->performKMeans(data, 3, 20);
+    auto data = clusterer->getImageData(pixmap.toImage());
+    centroids = clusterer->performKMeans(data, 100);
 }
+

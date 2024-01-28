@@ -7,7 +7,6 @@
 #include <QPixmap>
 #include <QMessageBox>
 
-#include "analysis.h"
 #include "kmeansclusterer.h"
 
 QT_BEGIN_NAMESPACE
@@ -27,11 +26,11 @@ public:
 
 private:
     Ui::Widget *ui;
-    std::shared_ptr<Analysis> analysis;
+
     std::shared_ptr<KMeansClusterer> clusterer;
     QString fileName;
     QVector<QRgb> centroids;
-
+    QVector<int> assinments;
 public slots:
     auto uploadImage()->void;
     auto kMeansClusterer() -> void;
