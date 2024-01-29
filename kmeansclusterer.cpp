@@ -32,33 +32,13 @@ auto KMeansClusterer::calculateDistance(QRgb color1, QRgb color2) -> qreal
 }
 
 QVector<QRgb> KMeansClusterer::initCentroids(const QVector<QRgb>& data, int k) {
-    QVector<QRgb> centroids;
-    QRandomGenerator randomGenerator;
+    static std::random_device seed;
+    static std::mt19937 random_number_generator(seed());
+    std::uniform_int_distribution<size_t> indices(0, data.size() - 1);
 
-    int firstCentroidIndex = randomGenerator.bounded(data.size());
-    centroids.push_back(data[firstCentroidIndex]);
-    while (centroids.size() < k)
-    {
-        QVector<double> distancesSquared(data.size(), std::numeric_limits<double>::max());
-        for (int dataIndex = 0; dataIndex < data.size(); ++dataIndex)
-        {
-            for (const QRgb& centroid : centroids)
-            {
-                double distanceSquared = calculateDistance(data[dataIndex], centroid);
-                distancesSquared[dataIndex] = std::min(distancesSquared[dataIndex], distanceSquared);
-            }
-        }
-        double totalDistanceSquared = std::accumulate(distancesSquared.begin(), distancesSquared.end(), 0.0);
-        double randomValue = randomGenerator.bounded(totalDistanceSquared);
-        double accumulatedDistanceSquared = 0.0;
-        int chosenIndex = 0;
-
-        while (accumulatedDistanceSquared < randomValue && chosenIndex < data.size())
-        {
-            accumulatedDistanceSquared += distancesSquared[chosenIndex++];
-        }
-
-        centroids << data[chosenIndex - 1];
+    DataFrame centroids(k);
+    for (auto& cluster : centroids) {
+        cluster = data[indices(random_number_generator)];
     }
     return centroids;
 }
@@ -89,21 +69,23 @@ auto KMeansClusterer::updateCentriods(const QVector<QRgb>& data, const QVector<i
     QVector<QRgb> updatedCentroids(k, qRgb(0, 0, 0));
     QVector<int> counts(k, 0);
 
-    int accumulatedRed, accumulatedGreen, accumulatedBlue = 0;
+    QVector<int> accumulatedRed(k, 0);
+    QVector<int> accumulatedGreen(k, 0);
+    QVector<int> accumulatedBlue(k, 0);
 
     for (int i = 0; i < data.size(); ++i)
     {
-        if (int clusterIndex = assignments[i]; clusterIndex >= 0 && clusterIndex < k)
+        int clusterIndex = assignments[i];
+        if (clusterIndex >= 0 && clusterIndex < k)
         {
-            accumulatedRed += qRed(data[i]);
-            accumulatedGreen += qGreen(data[i]);
-            accumulatedBlue += qBlue(data[i]);
-            updatedCentroids[clusterIndex] = qRgb(accumulatedRed, accumulatedGreen, accumulatedBlue);
+            accumulatedRed[clusterIndex] += qRed(data[i]);
+            accumulatedGreen[clusterIndex] += qGreen(data[i]);
+            accumulatedBlue[clusterIndex] += qBlue(data[i]);
             counts[clusterIndex]++;
         }
         else
         {
-          qDebug() << "Error: Invalid clusterIndex" << clusterIndex;
+            qDebug() << "Error: Invalid clusterIndex" << clusterIndex;
         }
     }
 
@@ -111,11 +93,13 @@ auto KMeansClusterer::updateCentriods(const QVector<QRgb>& data, const QVector<i
     {
         if (counts[i] > 0)
         {
-            updatedCentroids[i] = qRgb(accumulatedRed / counts[i], accumulatedGreen / counts[i],accumulatedBlue / counts[i]);
+            updatedCentroids[i] = qRgb(accumulatedRed[i] / counts[i], accumulatedGreen[i] / counts[i], accumulatedBlue[i] / counts[i]);
         }
     }
+
     return updatedCentroids;
 }
+
 
 auto KMeansClusterer::performKMeans(const QVector<QRgb>& data, int maxIterations) -> QVector<QRgb>
 {
@@ -154,19 +138,47 @@ int KMeansClusterer::getNumberOfIteration() const
     return numberOfIteration;
 }
 
-void KMeansClusterer::paintImage(const QImage& originalImage, const QVector<int>& assignments, const QVector<QRgb>& centroids) {
+// void KMeansClusterer::paintImage(const QImage& originalImage, const QVector<int>& assignments, const QVector<QRgb>& centroids) {
+//     paintedPixmap = QPixmap::fromImage(originalImage);
+//     QPainter painter(&paintedPixmap);
 
-    paintedPixmap = QPixmap::fromImage(originalImage);  // Create a pixmap with the same size as the original image
+//     scanConst<4, QRgb>(originalImage, [&](int x, int y, const QRgb &pixel) {
+//         int assignment = assignments[y * originalImage.width() + x];
+//         QRgb centroidColor = centroids[assignment];
+
+//         painter.setBrush(QColor(centroidColor));
+//         painter.drawRect(x, y, 1, 1);
+//     });
+// }
+
+// void KMeansClusterer::paintImage(const QImage& originalImage, const QVector<int>& assignments, const QVector<QRgb>& centroids) {
+//     paintedPixmap = QPixmap::fromImage(originalImage);
+//     QPainter painter(&paintedPixmap);
+
+//     for (int y = 0; y < originalImage.height(); ++y) {
+//         for (int x = 0; x < originalImage.width(); ++x) {
+//             int assignment = assignments[y * originalImage.width() + x];
+//             QRgb centroidColor = centroids[assignment];
+
+//             painter.setPen(centroidColor);
+//             painter.drawPoint(x, y);
+//         }
+//     }
+// }
+
+void KMeansClusterer::paintImage(const QImage& originalImage, const QVector<int>& assignments, const QVector<QRgb>& centroids) {
+    paintedPixmap = QPixmap::fromImage(originalImage);
     QPainter painter(&paintedPixmap);
 
-    scanConst<4, QRgb>(originalImage, [&](int x, int y, const QRgb &pixel) {
+    scanConst<4, QRgb>(originalImage, [&](int x, int y, const QRgb& pixel) {
         int assignment = assignments[y * originalImage.width() + x];
         QRgb centroidColor = centroids[assignment];
-        QPen pen;
-        pen.setColor(QColor(centroidColor));
-        pen.setWidth(1);
-        painter.setPen(pen);
-        painter.setBrush(QColor(centroidColor));
-        painter.drawRect(x, y, 1, 1);
+
+        painter.setPen(centroidColor);
+        painter.drawPoint(x, y);
     });
 }
+
+
+
+

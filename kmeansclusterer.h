@@ -15,6 +15,8 @@
 #include <QPainter>
 #include <cmath>
 
+using DataFrame = QVector<QRgb>;
+
 template<int byteDepth, typename T>
 void scan(QImage &image, std::function<void(int, int, T&)> f)
 {
@@ -42,7 +44,7 @@ void scanConst(const QImage &image, std::function<void(int, int, const T&)> f) {
 class KMeansClusterer
 {
 public:
-    KMeansClusterer(int k = 4);
+    KMeansClusterer(int k = 10);
     auto getImageData(QImage img) -> QVector<QRgb>;
     auto calculateDistance(QRgb color1, QRgb color2) -> qreal;
     auto initCentroids(const QVector<QRgb>& data, int k) -> QVector<QRgb>;
@@ -58,6 +60,7 @@ public:
 private:
     int k;
     QPixmap paintedPixmap;
+    QRandomGenerator randomGenerator;
     const int numberOfIteration = 100;
 };
 
