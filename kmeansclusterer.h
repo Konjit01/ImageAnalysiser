@@ -17,6 +17,7 @@
 
 using DataFrame = QVector<QRgb>;
 
+/*I did not implement this template function.*/
 template<int byteDepth, typename T>
 void scan(QImage &image, std::function<void(int, int, T&)> f)
 {
